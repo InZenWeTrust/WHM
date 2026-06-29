@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07111e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WHM">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+  <title>WHM Timer</title>
+  <style>
+    :root {
+      --bg: #07111e;
+      --bg-deep: #040b14;
+      --panel: rgba(12, 26, 43, .84);
+      --text: #f4eee3;
+      --muted: #a5b0bd;
+      --amber: #efae46;
+      --amber-hi: #ffdb8c;
+      --line: rgba(239, 174, 70, .24);
+      --shadow: 0 26px 70px rgba(0,0,0,.46);
+      --ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+      --timer: Georgia, "Times New Roman", Times, serif;
+    }
+
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html, body { width:100%; min-height:100%; margin:0; }
+    body {
+      overflow:hidden;
+      color:var(--text);
+      font-family:var(--ui);
+      font-weight:300;
+      background:
+        radial-gradient(88% 56% at 50% -9%, rgba(57,82,114,.36), transparent 58%),
+        radial-gradient(86% 48% at 50% 109%, rgba(41,70,98,.27), transparent 59%),
+        linear-gradient(155deg, var(--bg-deep), var(--bg) 52%, #07131f);
+    }
+    body::before {
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.33;
+      background-image:
+        linear-gradient(rgba(255,255,255,.016) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px);
+      background-size:4px 4px, 5px 5px;
+      mix-blend-mode:overlay;
+    }
+    button { font:inherit; font-weight:400; border:0; color:inherit; cursor:pointer; touch-action:manipulation; }
+    .app {
+      position:relative; isolation:isolate;
+      width:min(100%,560px); height:100dvh; min-height:600px; margin:0 auto;
+      padding:max(14px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
+      display:flex; flex-direction:column;
+    }
+    .app::after {
+      content:""; position:absolute; z-index:-1; left:-20%; bottom:-14%; width:140%; height:34%; opacity:.52; pointer-events:none;
+      background:
+        radial-gradient(ellipse at 20% 68%, rgba(240,174,71,.10) 0 3%, transparent 4%),
+        radial-gradient(ellipse at 26% 75%, rgba(240,174,71,.06) 0 8%, transparent 9%),
+        radial-gradient(ellipse at 77% 83%, rgba(255,255,255,.035), transparent 50%);
+      filter:blur(1px);
+    }
+
+    header { min-height:54px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .brand { display:flex; align-items:center; gap:10px; min-width:0; }
+    .brand-mark {
+      width:31px; height:31px; flex:0 0 auto; border-radius:50%;
+      border:1px solid var(--amber); position:relative; box-shadow:0 0 18px rgba(239,174,70,.22);
+    }
+    .brand-mark::before { content:""; position:absolute; inset:6px; border:1px solid rgba(255,219,140,.8); border-radius:50%; }
+    .brand-mark::after { content:""; position:absolute; inset:12px; border-radius:50%; background:var(--amber); }
+    .brand-title { font-size:22px; line-height:1; letter-spacing:.02em; color:#f5e1bc; font-weight:300; }
+    .brand-sub { margin-top:4px; font-size:10px; color:var(--muted); letter-spacing:.16em; text-transform:uppercase; }
+    .sound-btn {
+      width:40px; height:40px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+      background:rgba(18,35,52,.74); border:1px solid var(--line); color:var(--amber-hi); font-size:18px;
+    }
+    .sound-btn[aria-pressed="false"] { color:#687687; }
+
+    .stage { flex:1; min-height:0; position:relative; display:flex; align-items:center; justify-content:center; }
+    .screen { width:100%; display:none; flex-direction:column; align-items:center; text-align:center; animation:screen-in .38s ease both; }
+    .screen.active { display:flex; }
+    @keyframes screen-in { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:translateY(0); } }
+
+    .eyebrow { color:var(--amber); font-size:11px; font-weight:400; letter-spacing:.19em; text-transform:uppercase; margin-bottom:8px; }
+    .headline { margin:0; font-size:clamp(31px,8vw,44px); line-height:1.08; font-weight:300; letter-spacing:-.035em; color:#f6ebda; }
+    .subline { max-width:338px; margin:11px auto 0; font-size:15px; line-height:1.48; color:var(--muted); font-weight:300; }
+
+    /* Common breath circle: one thin outer ring + a soft flat cream-amber pulse that grows to the ring. */
+    .breath-visual { position:relative; display:grid; place-items:center; width:min(77vw,335px); aspect-ratio:1; margin:29px auto 21px; }
+    .outer-ring { position:absolute; inset:0; border-radius:50%; border:1.4px solid rgba(239,174,70,.86); box-shadow:0 0 38px rgba(239,174,70,.08), inset 0 0 42px rgba(239,174,70,.025); }
+    .flat-disc {
+      position:absolute; inset:0; z-index:1; border-radius:50%;
+      opacity:.72;
+      background:
+        radial-gradient(circle at 50% 50%,
+          rgba(255, 249, 226, .96) 0 14%,
+          rgba(255, 221, 139, .78) 25%,
+          rgba(244, 174, 74, .48) 48%,
+          rgba(239, 120, 65, .19) 70%,
+          rgba(239, 120, 65, 0) 100%);
+      filter:blur(.25px);
+      transform:scale(.18);
+      animation:flat-pulse 4s cubic-bezier(.45,0,.55,1) infinite;
+    }
+    .flat-disc::after {
+      content:""; position:absolute; inset:0; border-radius:50%;
+      border:1px solid rgba(255, 230, 167, .38);
+      box-shadow:
+        0 0 22px rgba(255, 230, 167, .30),
+        0 0 64px rgba(242, 151, 61, .16);
+    }
+    .outer-ring { z-index:2; }
+    @keyframes flat-pulse {
+      0%,100% { transform:scale(.18); opacity:.44; }
+      50% { transform:scale(1); opacity:.92; }
+    }
+    .cycle-count { font-family:var(--timer); font-size:clamp(49px,13vw,66px); line-height:1; letter-spacing:-.06em; color:#f5e8d4; font-weight:400; font-variant-numeric:tabular-nums; }
+    .cycle-count .active-num { color:var(--amber); }
+    .cycle-label { margin-top:8px; color:var(--muted); font-size:14px; font-weight:300; letter-spacing:.10em; text-transform:uppercase; }
+    .cycle-note { min-height:18px; margin-top:10px; color:var(--amber-hi); font-size:13px; }
+    .progress-dots { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; max-width:285px; margin:24px auto 0; }
+    .dot { width:6px; height:6px; border-radius:50%; background:#384859; box-shadow:inset 0 0 3px rgba(0,0,0,.7); }
+    .dot.done { background:var(--amber); box-shadow:0 0 8px rgba(239,174,70,.72); }
+
+    .primary, .secondary {
+      width:100%; min-height:56px; padding:14px 18px; border-radius:16px; font-size:16px; transition:transform .15s ease, filter .15s ease;
+    }
+    .primary:active, .secondary:active { transform:scale(.98); }
+    .primary { color:#1a130a; font-weight:500; background:linear-gradient(135deg,#f8c767,#d88c2d); box-shadow:0 13px 33px rgba(199,123,35,.27); }
+    .secondary { color:#f0ddbe; font-weight:400; border:1px solid rgba(239,174,70,.34); background:rgba(21,38,55,.76); }
+    .home-actions { width:min(100%,370px); margin-top:16px; }
+    .tiny-note { margin:12px auto 0; color:#8793a1; font-size:12px; line-height:1.45; max-width:310px; }
+    .to-hold-btn { width:min(100%, 300px); margin-top:18px; min-height:48px; padding:12px 16px; border-radius:14px; color:#f5dfb7; background:rgba(21,38,55,.64); border:1px solid rgba(239,174,70,.32); font-weight:400; }
+
+    /* Retention timer: exact SVG orbit. The moving strip and its dot share one path. */
+    .hold-touch { width:100%; min-height:calc(100dvh - 105px); margin:-12px 0; padding:26px 0 max(18px,env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; justify-content:center; background:transparent; }
+    .hold-title { margin-bottom:3px; }
+    .hold-svg { width:min(78vw,345px); height:auto; margin:22px auto 20px; overflow:visible; }
+    .hold-track { fill:none; stroke:rgba(239,174,70,.12); stroke-width:8; }
+    .hold-arc { fill:none; stroke:var(--amber); stroke-width:8; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(239,174,70,.45)); }
+    .hold-dot { fill:var(--amber-hi); filter:drop-shadow(0 0 7px rgba(255,219,140,.92)); }
+    .hold-core-svg { fill:#0b1828; stroke:rgba(239,174,70,.18); stroke-width:1; }
+    .hold-time-svg { fill:var(--amber); font-family:var(--timer); font-weight:400; font-size:68px; text-anchor:middle; dominant-baseline:middle; letter-spacing:-4px; }
+    .ring-svg { width:min(66vw,250px); height:auto; margin:3px auto 0; overflow:visible; }
+    .ring-track { fill:none; stroke:rgba(239,174,70,.12); stroke-width:8; }
+    .ring-active { fill:none; stroke:var(--amber); stroke-width:8; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(239,174,70,.45)); }
+    .ring-dot { fill:var(--amber-hi); filter:drop-shadow(0 0 6px rgba(255,219,140,.9)); }
+    .timer-core-svg { fill:#0b1828; stroke:rgba(239,174,70,.18); stroke-width:1; }
+    .tap-instruction { max-width:325px; margin:0; font-size:20px; line-height:1.42; color:#f2e8dc; font-weight:300; }
+    .tap-instruction strong { color:var(--amber-hi); font-weight:300; }
+    .minute-note { position:absolute; bottom:max(22px,env(safe-area-inset-bottom)); display:flex; align-items:center; gap:8px; color:#aeb7c1; font-size:12px; font-weight:300; }
+    .bell { color:var(--amber); font-size:17px; }
+
+    /* Three-second deep inhale. A fixed dark core protects the numeral. */
+    .deep-intro { max-width:335px; margin-bottom:20px; }
+    .deep-visual {
+      position:relative; width:min(76vw,322px); aspect-ratio:1; display:grid; place-items:center;
+      margin:8px auto 20px; overflow:hidden; border-radius:50%;
+    }
+    .deep-outer {
+      position:absolute; inset:0; z-index:3; pointer-events:none;
+      border:1.4px solid rgba(239,174,70,.84); border-radius:50%;
+      box-shadow:0 0 34px rgba(239,174,70,.08);
+    }
+    .deep-wave {
+      position:absolute; inset:0; z-index:1; border-radius:50%;
+      background:rgba(239,174,70,.43);
+      border:1px solid rgba(255,219,140,.55);
+      box-shadow:0 0 22px rgba(239,174,70,.34);
+      transform:scale(.32);
+      transform-origin:center;
+    }
+    .deep-wave.run { animation:deep-expand 3s cubic-bezier(.22,.75,.3,1) forwards; }
+    @keyframes deep-expand {
+      0% { transform:scale(.32); opacity:.46; }
+      78% { opacity:1; }
+      100% { transform:scale(1); opacity:.86; }
+    }
+    .deep-core {
+      position:relative; z-index:2; width:102px; height:102px; border-radius:50%; display:grid; place-items:center;
+      background:#0b1828; border:1px solid rgba(239,174,70,.30); box-shadow:0 0 28px rgba(0,0,0,.37);
+    }
+    .deep-count { color:var(--amber-hi); font-family:var(--timer); font-size:58px; font-weight:400; line-height:1; font-variant-numeric:tabular-nums; }
+
+    /* Twenty-second post-inhale hold: same timer format as “Задержка дыхания”. */
+    .recovery-title { margin-bottom:12px; }
+    .recovery-svg { width:min(78vw,345px); height:auto; margin:22px auto 20px; overflow:visible; }
+    .recovery-value-svg {
+      fill:var(--amber); font-family:var(--timer); font-size:68px; font-weight:400;
+      letter-spacing:-4px; text-anchor:middle; dominant-baseline:middle;
+    }
+    .recovery-note { display:none; }
+
+    /* Pause / summary */
+    .pause-card { width:min(100%,392px); padding:29px 22px 23px; border-radius:26px; background:linear-gradient(155deg,rgba(26,43,60,.94),rgba(10,20,32,.92)); border:1px solid var(--line); box-shadow:var(--shadow); }
+    .round-complete { color:var(--amber); font-size:14px; font-weight:400; letter-spacing:.17em; text-transform:uppercase; }
+    .pause-num { margin:14px 0 3px; color:#f5e8d4; font-family:var(--timer); font-size:78px; font-weight:400; line-height:1; font-variant-numeric:tabular-nums; }
+    .pause-copy { margin-bottom:24px; color:var(--muted); font-weight:300; }
+
+    .summary { width:min(100%,425px); padding:10px 0; }
+    .star-badge { width:84px; height:84px; margin:0 auto 15px; border-radius:50%; display:grid; place-items:center; color:var(--amber-hi); font-size:40px; border:1px solid rgba(255,219,140,.54); background:radial-gradient(circle,rgba(239,174,70,.26),rgba(239,174,70,.05) 65%,transparent 70%); box-shadow:0 0 29px rgba(239,174,70,.23); }
+    .finish-title { margin:0; color:#f4e6d3; font-size:38px; line-height:1.05; font-weight:300; letter-spacing:-.04em; }
+    .praise { margin:8px 0 20px; color:var(--amber); font-size:17px; font-weight:300; }
+    .round-list { max-height:min(36dvh,300px); overflow:auto; border:1px solid var(--line); border-radius:19px; background:rgba(12,24,39,.75); }
+    .round-row { min-height:54px; padding:0 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(255,255,255,.055); color:#e6e4dd; font-weight:300; }
+    .round-row:last-child { border-bottom:0; }
+    .round-row.best { color:var(--amber-hi); background:linear-gradient(90deg,rgba(239,174,70,.18),rgba(239,174,70,.03)); }
+    .round-time { font-family:var(--timer); font-size:19px; font-weight:400; font-variant-numeric:tabular-nums; }
+    .best-line { margin:12px 0 18px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(239,174,70,.21); border-radius:14px; background:rgba(239,174,70,.10); color:#f6e2bb; font-weight:300; }
+    .best-line strong { color:var(--amber); font-family:var(--timer); font-size:22px; font-weight:400; font-variant-numeric:tabular-nums; }
+    .summary .secondary { margin-top:12px; }
+
+    .modal { position:fixed; inset:0; z-index:20; display:none; align-items:flex-end; background:rgba(0,0,0,.55); backdrop-filter:blur(8px); }
+    .modal.open { display:flex; }
+    .sheet { width:min(100%,560px); max-height:79dvh; margin:0 auto; overflow:auto; padding:21px 20px max(24px,env(safe-area-inset-bottom)); border:1px solid var(--line); border-radius:26px 26px 0 0; background:linear-gradient(160deg,#132235,#0a1727); box-shadow:0 -20px 55px rgba(0,0,0,.45); }
+    .sheet-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:15px; }
+    .sheet-head h2 { margin:0; font-size:28px; line-height:1; font-weight:300; letter-spacing:-.03em; }
+    .close-btn { width:36px; height:36px; border-radius:50%; background:#1a2b3c; border:1px solid var(--line); font-size:21px; font-weight:300; }
+    .history-item { padding:14px 0; border-bottom:1px solid rgba(255,255,255,.07); }
+    .history-date { margin-bottom:7px; color:var(--amber-hi); font-size:14px; font-weight:300; }
+    .history-data { color:#d7dce1; line-height:1.55; font-weight:300; }
+    .history-empty { padding:25px 0; color:var(--muted); font-weight:300; }
+
+    @media (max-height:740px) {
+      .app { min-height:540px; }
+      .breath-visual { width:min(60vw,265px); margin:14px auto 8px; }
+      .progress-dots { margin-top:13px; }
+      .hold-svg { width:min(64vw,290px); margin:12px auto; }
+      .hold-touch { min-height:calc(100dvh - 83px); }
+      .deep-visual { width:min(61vw,260px); margin:2px auto 12px; }
+      .recovery-svg { width:min(64vw,290px); margin:12px auto; }
+    }
+
+    /* v5 — unified fixed circle module */
+    :root { --circle-size: min(78vw, 345px); }
+    .stage { flex:1; min-height:0; position:relative; display:block; overflow:hidden; }
+    .screen { position:absolute; inset:0; width:100%; }
+    .screen.has-circle {
+      display:none;
+      grid-template-columns:1fr;
+      grid-template-rows:minmax(0,1fr) var(--circle-size) minmax(0,1fr);
+      justify-items:center;
+      align-items:stretch;
+      text-align:center;
+    }
+    .screen.has-circle.active { display:grid; }
+    .screen-top {
+      grid-row:1;
+      width:min(100%, 390px);
+      align-self:end;
+      padding:0 8px 18px;
+    }
+    .screen-bottom {
+      grid-row:3;
+      width:min(100%, 370px);
+      align-self:start;
+      padding:18px 0 0;
+    }
+    .circle-frame {
+      grid-row:2;
+      width:var(--circle-size) !important;
+      height:var(--circle-size) !important;
+      margin:0 !important;
+      align-self:center;
+      justify-self:center;
+    }
+
+    /* all non-header interface copy stays lowercase */
+    .eyebrow, .cycle-label, .round-complete { text-transform:none; }
+
+    /* Flat expanding ring: no fill, no sphere, no volume. */
+    .breath-visual { position:relative; display:grid; place-items:center; aspect-ratio:1; }
+    .flat-disc {
+      position:absolute; inset:0; z-index:1; border-radius:50%;
+      background:none !important;
+      border:1.5px solid rgba(255, 219, 140, .86);
+      box-shadow:0 0 18px rgba(239,174,70,.28), 0 0 42px rgba(239,174,70,.10);
+      filter:none !important;
+      transform:scale(.12);
+      animation:flat-pulse 4s cubic-bezier(.45,0,.55,1) infinite;
+    }
+    .flat-disc::after { display:none; }
+    .outer-ring { z-index:2; }
+    @keyframes flat-pulse {
+      0%,100% { transform:scale(.12); opacity:.15; }
+      50% { transform:scale(1); opacity:.92; }
+    }
+
+    /* shared positions around the fixed circle */
+    .home-copy { padding-bottom:14px; }
+    .home-actions { margin:0; }
+    .home-actions .tiny-note { margin:12px auto 0; }
+    .breath-top { padding-bottom:14px; }
+    .breath-bottom { padding-top:14px; }
+    .breath-bottom .progress-dots { margin:14px auto 0; }
+    .breath-bottom .to-hold-btn { margin-top:14px; }
+
+    /* free retention screen uses the same grid but remains fully tappable */
+    #hold.has-circle.active { display:block; }
+    .hold-touch {
+      position:absolute; inset:0; width:100%; min-height:0; margin:0; padding:0;
+      display:grid;
+      grid-template-columns:1fr;
+      grid-template-rows:minmax(0,1fr) var(--circle-size) minmax(0,1fr);
+      justify-items:center;
+      align-items:stretch;
+    }
+    .hold-title {
+      grid-row:1;
+      align-self:end;
+      width:min(100%,390px);
+      margin:0;
+      padding:0 8px 18px;
+    }
+    .hold-svg { grid-row:2; width:var(--circle-size) !important; height:var(--circle-size) !important; margin:0 !important; }
+    .hold-bottom { grid-row:3; align-self:start; width:min(100%,370px); padding:18px 0 0; }
+    .tap-instruction { margin:0; }
+    .minute-note { left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 24px); }
+
+    /* deep inhale and 20-second hold use the same circle frame */
+    .deep-intro, .recovery-heading { padding-bottom:18px; margin:0; }
+    .deep-visual { position:relative; aspect-ratio:1; overflow:hidden; border-radius:50%; }
+    .deep-wave {
+      background:none;
+      border:1.5px solid rgba(255,219,140,.82);
+      box-shadow:0 0 20px rgba(239,174,70,.24);
+    }
+    .recovery-svg { grid-row:2; width:var(--circle-size) !important; height:var(--circle-size) !important; margin:0 !important; }
+
+    @media (max-height:740px) {
+      :root { --circle-size:min(68vw,300px); }
+      .screen-top, .hold-title { padding-bottom:12px; }
+      .screen-bottom, .hold-bottom { padding-top:12px; }
+      .home-copy .subline { margin-top:7px; }
+      .breath-bottom .progress-dots { margin-top:8px; }
+      .breath-bottom .to-hold-btn { margin-top:8px; min-height:42px; }
+    }
+
+    /* v5.1 — explicit centering corrections */
+    /* The pause screen belongs in the center of the available stage, not at the top. */
+    #pause.screen.active {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+    }
+    #pause .pause-card {
+      margin:0 auto;
+    }
+
+    /* The reference “задержка дыхания” timer and its instruction share the same center axis. */
+    #hold .hold-touch {
+      justify-items:center;
+      text-align:center;
+    }
+    #hold .hold-svg {
+      justify-self:center;
+      align-self:center;
+      display:block;
+    }
+    #hold .hold-bottom {
+      justify-self:center;
+      align-self:start;
+      margin:0 auto;
+      text-align:center;
+    }
+    #hold .tap-instruction {
+      width:100%;
+      max-width:325px;
+      margin:0 auto;
+      text-align:center;
+    }
+
+    /* Every circular screen uses exactly the reference timer diameter. */
+    .screen.has-circle .circle-frame {
+      width:var(--circle-size) !important;
+      height:var(--circle-size) !important;
+      justify-self:center;
+      align-self:center;
+    }
+
+    /* The start copy remains compact after removing the old slogan. */
+    #home .home-copy {
+      padding-bottom:18px;
+    }
+    #home .home-copy .subline {
+      margin:0 auto;
+    }
+
+    /* v5.2 — canonical circle size and upper-third anchor */
+    /*
+      Reference geometry:
+      - the SVG ring on “задержка дыхания” has r=132 in a 320×320 viewBox;
+      - therefore its visible ring diameter is 82.5% of the 345px canvas;
+      - the breathing and inhale rings use the same visible diameter.
+    */
+    :root {
+      --circle-size: min(78vw, 345px);
+      --circle-half: min(39vw, 172.5px);
+      --ring-inset: 8.75%;
+      /*
+        The stage begins below the fixed header.
+        28% of the stage corresponds visually to approximately the first third
+        of the complete screen. The clamp keeps headings from colliding on short screens.
+      */
+      --circle-top: clamp(
+        62px,
+        calc(28% - var(--circle-half)),
+        calc(100% - var(--circle-size) - 16px)
+      );
+    }
+
+    /* All circle screens use absolute layout: copy cannot move the circle. */
+    .screen.has-circle.active {
+      display:block !important;
+      position:absolute;
+      inset:0;
+      text-align:center;
+    }
+    .screen.has-circle .circle-frame {
+      position:absolute !important;
+      top:var(--circle-top) !important;
+      left:50% !important;
+      width:var(--circle-size) !important;
+      height:var(--circle-size) !important;
+      margin:0 !important;
+      transform:translateX(-50%);
+      justify-self:auto !important;
+      align-self:auto !important;
+    }
+
+    .screen.has-circle .screen-top {
+      position:absolute;
+      z-index:5;
+      top:0;
+      left:0;
+      right:0;
+      width:min(100%, 390px);
+      margin:0 auto;
+      padding:0 8px;
+      text-align:center;
+    }
+    .screen.has-circle .screen-bottom {
+      position:absolute;
+      z-index:5;
+      top:calc(var(--circle-top) + var(--circle-size) + 16px);
+      left:0;
+      right:0;
+      width:min(100%, 370px);
+      margin:0 auto;
+      padding:0;
+      text-align:center;
+    }
+
+    /* The breathing and inhale circles match the visible diameter of the SVG reference ring. */
+    .breath-visual .outer-ring,
+    .breath-visual .flat-disc,
+    .deep-visual .deep-outer,
+    .deep-visual .deep-wave {
+      inset:var(--ring-inset);
+    }
+
+    /* The free-retention screen uses the same upper-third anchor and central axis. */
+    #hold.has-circle.active {
+      display:block !important;
+      position:absolute;
+      inset:0;
+    }
+    #hold .hold-touch {
+      position:absolute;
+      inset:0;
+      display:block !important;
+      min-height:0;
+      margin:0;
+      padding:0;
+      text-align:center;
+    }
+    #hold .hold-title {
+      position:absolute;
+      z-index:5;
+      top:0;
+      left:0;
+      right:0;
+      width:min(100%, 390px);
+      margin:0 auto;
+      padding:0 8px;
+      text-align:center;
+    }
+    #hold .hold-svg {
+      position:absolute !important;
+      top:var(--circle-top) !important;
+      left:50% !important;
+      width:var(--circle-size) !important;
+      height:var(--circle-size) !important;
+      margin:0 !important;
+      transform:translateX(-50%);
+    }
+    #hold .hold-bottom {
+      position:absolute;
+      z-index:5;
+      top:calc(var(--circle-top) + var(--circle-size) + 16px);
+      left:0;
+      right:0;
+      width:min(100%, 370px);
+      margin:0 auto;
+      padding:0;
+      text-align:center;
+    }
+    #hold .tap-instruction {
+      width:100%;
+      max-width:325px;
+      margin:0 auto;
+      text-align:center;
+    }
+
+    @media (max-height:740px) {
+      :root {
+        --circle-size: min(68vw, 300px);
+        --circle-half: min(34vw, 150px);
+        --circle-top: clamp(
+          54px,
+          calc(28% - var(--circle-half)),
+          calc(100% - var(--circle-size) - 12px)
+        );
+      }
+      .screen.has-circle .screen-bottom,
+      #hold .hold-bottom {
+        top:calc(var(--circle-top) + var(--circle-size) + 12px);
+      }
+    }
+
+    /* v6 — unified inhale + hold screen */
+    .recovery-heading {
+      width:min(100%, 390px);
+      text-align:center;
+    }
+    .recovery-title {
+      max-width:350px;
+      margin:0 auto;
+      font-size:clamp(26px, 7vw, 36px);
+      line-height:1.14;
+    }
+    .recovery-remaining-svg {
+      fill:var(--muted);
+      font-family:var(--ui);
+      font-weight:300;
+      font-size:14px;
+      text-anchor:middle;
+      opacity:0;
+      transition:opacity .20s ease;
+    }
+    .recovery-value-svg {
+      opacity:0;
+      transition:opacity .20s ease;
+    }
+    .recovery-remaining-svg.is-visible,
+    .recovery-value-svg.is-visible {
+      opacity:1;
+    }
+
+    /* During the three hidden preparation seconds the circle remains full and calm. */
+    #recovery .ring-active,
+    #recovery .ring-dot {
+      transition:opacity .15s ease;
+    }
+
+    /* v6.1 — repair unified hold countdown and reduce instruction scale */
+    #recovery .recovery-heading {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:28px;
+      padding:0 18px;
+    }
+    #recovery .recovery-prompt {
+      margin:0;
+      max-width:300px;
+      color:var(--muted);
+      font-family:var(--ui);
+      font-size:14px;
+      font-weight:300;
+      line-height:1.35;
+      letter-spacing:.01em;
+      text-align:center;
+    }
+    #recovery .recovery-title {
+      display:none;
+    }
+
+    /* v6.2 — direct 20-second countdown */
+    #recovery .recovery-prompt {
+      max-width:320px;
+      margin:0 auto;
+      color:var(--muted);
+      font-family:var(--ui);
+      font-size:14px;
+      font-weight:300;
+      line-height:1.35;
+      letter-spacing:.01em;
+      text-align:center;
+    }
+    #recovery .recovery-value-svg {
+      opacity:1;
+      transition:none;
+    }
+
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <div class="brand-title">WHM Timer</div>
+          <div class="brand-sub">Дыхание</div>
+        </div>
+      </div>
+      <button id="soundBtn" class="sound-btn" aria-label="включить или выключить звук" aria-pressed="true">◖◗</button>
+    </header>
+
+    <section class="stage">
+      <section id="home" class="screen has-circle active">
+        <div class="screen-top home-copy">
+          <div class="eyebrow">практика дыхания</div>
+          <p class="subline">по методу Вима Хофа</p>
+        </div>
+        <div class="breath-visual circle-frame" aria-hidden="true"><div class="outer-ring"></div><div class="flat-disc"></div></div>
+        <div class="screen-bottom home-actions">
+          <button id="startBtn" class="primary">начать практику</button>
+          <button id="historyBtn" class="secondary" style="margin-top:14px">история практик</button>
+        </div>
+      </section>
+
+      <section id="breath" class="screen has-circle" aria-live="polite">
+        <div class="screen-top breath-top"><div class="eyebrow">раунд <span id="roundNumber">1</span></div></div>
+        <div class="breath-visual circle-frame" aria-hidden="true"><div class="outer-ring"></div><div class="flat-disc"></div></div>
+        <div class="screen-bottom breath-bottom">
+          <div class="cycle-count"><span id="cycleNumber" class="active-num">1</span> / 30</div>
+          <div class="cycle-label">циклы</div>
+          <div id="cycleNote" class="cycle-note">&nbsp;</div>
+          <div id="dots" class="progress-dots" aria-hidden="true"></div>
+          <button id="toHoldBtn" class="to-hold-btn">к задержке дыхания</button>
+        </div>
+      </section>
+
+      <section id="hold" class="screen has-circle">
+        <button id="holdTouch" class="hold-touch" aria-label="нажми, чтобы зафиксировать время задержки">
+          <div class="eyebrow hold-title">задержка дыхания</div>
+          <svg class="hold-svg circle-frame" viewBox="0 0 320 320" aria-hidden="true">
+            <circle class="hold-track" cx="160" cy="160" r="132"></circle>
+            <path id="holdArc" class="hold-arc" d=""></path>
+            <circle id="holdDot" class="hold-dot" cx="160" cy="28" r="6"></circle>
+            <circle class="hold-core-svg" cx="160" cy="160" r="106"></circle>
+            <text id="holdTimer" class="hold-time-svg" x="160" y="160">00:00</text>
+          </svg>
+          <div class="screen-bottom hold-bottom">
+            <p class="tap-instruction">коснись экрана, когда будешь готов<br><strong>сделать глубокий вдох</strong></p>
+          </div>
+          <div class="minute-note"><span class="bell">♢</span> каждая минута отмечается гонгом</div>
+        </button>
+      </section>
+
+
+      <section id="recovery" class="screen has-circle">
+        <div class="screen-top recovery-heading">
+          <p class="recovery-prompt">сделай глубокий вдох и задержи дыхание</p>
+        </div>
+        <svg class="recovery-svg circle-frame" viewBox="0 0 320 320" aria-hidden="true">
+          <circle class="ring-track" cx="160" cy="160" r="132"></circle>
+          <path id="recoveryArc" class="ring-active" d=""></path>
+          <circle id="recoveryDot" class="ring-dot" cx="160" cy="28" r="6"></circle>
+          <circle class="timer-core-svg" cx="160" cy="160" r="106"></circle>
+          <text id="recoveryTimer" class="recovery-value-svg" x="160" y="160">0:20</text>
+        </svg>
+      </section>
+
+      <section id="pause" class="screen">
+        <div class="pause-card">
+          <div class="round-complete">раунд <span id="pauseRound">1</span> завершён</div>
+          <div id="pauseTimer" class="pause-num">5</div>
+          <div class="pause-copy">следующий раунд начнётся автоматически</div>
+          <button id="finishBtn" class="primary">завершить практику</button>
+        </div>
+      </section>
+
+      <section id="finish" class="screen">
+        <div class="summary">
+          <div class="star-badge">★</div>
+          <h2 class="finish-title">практика завершена</h2>
+          <div id="praise" class="praise">хорошая практика.</div>
+          <div id="roundList" class="round-list"></div>
+          <div class="best-line"><span>лучший результат</span><strong id="bestTime">00:00</strong></div>
+          <button id="newSessionBtn" class="primary">новая практика</button>
+          <button id="summaryHistoryBtn" class="secondary">история практик</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="historyModal" class="modal" role="dialog" aria-modal="true" aria-label="история практик">
+    <div class="sheet">
+      <div class="sheet-head"><h2>история практик</h2><button id="closeHistoryBtn" class="close-btn" aria-label="закрыть">×</button></div>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <audio id="ambientAudio" preload="auto" loop>
+    <source src="./assets/ambient.mp3" type="audio/mpeg">
+    <source src="./assets/ambient.ogg" type="audio/ogg">
+  </audio>
+  <audio id="finalAudio" preload="auto">
+    <source src="./assets/final-cycle.mp3" type="audio/mpeg">
+    <source src="./assets/final-cycle.ogg" type="audio/ogg">
+  </audio>
+  <audio id="softGongAudio" preload="auto">
+    <source src="./assets/soft-gong.mp3" type="audio/mpeg">
+    <source src="./assets/soft-gong.ogg" type="audio/ogg">
+  </audio>
+  <audio id="completionAudio" preload="auto">
+    <source src="./assets/completion-gong.mp3" type="audio/mpeg">
+    <source src="./assets/completion-gong.ogg" type="audio/ogg">
+  </audio>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const CFG = {
+      cycles: 30,
+      cycleMs: 4000,
+      postInhaleHoldSec: 20,
+      pauseSec: 5,
+      historyKey: "whm_timer_zen_pwa_v3",
+      ringRadius: 132,
+      ringCircumference: 2 * Math.PI * 132
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const screens = {
+      home: $("home"), breath: $("breath"), hold: $("hold"),
+      recovery: $("recovery"), pause: $("pause"), finish: $("finish")
+    };
+    const el = {
+      startBtn: $("startBtn"),
+      soundBtn: $("soundBtn"),
+      historyBtn: $("historyBtn"),
+      summaryHistoryBtn: $("summaryHistoryBtn"),
+      closeHistoryBtn: $("closeHistoryBtn"),
+      historyModal: $("historyModal"),
+      historyList: $("historyList"),
+      roundNumber: $("roundNumber"),
+      cycleNumber: $("cycleNumber"),
+      cycleNote: $("cycleNote"),
+      dots: $("dots"),
+      toHoldBtn: $("toHoldBtn"),
+      holdTouch: $("holdTouch"),
+      holdArc: $("holdArc"),
+      holdDot: $("holdDot"),
+      holdTimer: $("holdTimer"),
+      recoveryArc: $("recoveryArc"),
+      recoveryDot: $("recoveryDot"),
+      recoveryTimer: $("recoveryTimer"),
+      pauseRound: $("pauseRound"),
+      pauseTimer: $("pauseTimer"),
+      finishBtn: $("finishBtn"),
+      roundList: $("roundList"),
+      bestTime: $("bestTime"),
+      praise: $("praise"),
+      newSessionBtn: $("newSessionBtn"),
+      ambient: $("ambientAudio"),
+      final: $("finalAudio"),
+      softGong: $("softGongAudio"),
+      completion: $("completionAudio")
+    };
+
+    let phase = "home";
+    let soundOn = true;
+    let currentRound = 1;
+    let currentCycle = 1;
+    let results = [];
+    let cycleTimer = null;
+    let holdRaf = null;
+    let recoveryInterval = null;
+    let pauseInterval = null;
+    let ambientFadeInterval = null;
+    let holdStartedAt = 0;
+    let lastMarkedMinute = 0;
+
+    const audios = [el.ambient, el.final, el.softGong, el.completion];
+
+    function show(name) {
+      Object.values(screens).forEach((screen) => screen.classList.remove("active"));
+      screens[name].classList.add("active");
+      phase = name;
+    }
+
+    function format(seconds) {
+      const s = Math.max(0, Math.floor(seconds));
+      return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+    }
+
+    function clearTimers() {
+      clearTimeout(cycleTimer);
+      cancelAnimationFrame(holdRaf);
+      clearInterval(recoveryInterval);
+      clearInterval(pauseInterval);
+      clearInterval(ambientFadeInterval);
+      cycleTimer = holdRaf = recoveryInterval = pauseInterval = ambientFadeInterval = null;
+    }
+
+    function stopAudio(audio) {
+      try { audio.pause(); audio.currentTime = 0; } catch (_) {}
+    }
+
+    function playEffect(audio, volume = 0.5) {
+      if (!soundOn) return;
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = volume;
+        audio.play().catch(() => {});
+      } catch (_) {}
+    }
+
+    function startAmbient() {
+      if (!soundOn) return;
+      clearInterval(ambientFadeInterval);
+      try {
+        el.ambient.volume = 0.24;
+        el.ambient.play().catch(() => {});
+      } catch (_) {}
+    }
+
+    function fadeAmbient() {
+      clearInterval(ambientFadeInterval);
+      const startVolume = el.ambient.volume || 0.24;
+      let step = 0;
+      const steps = 14;
+      ambientFadeInterval = setInterval(() => {
+        step += 1;
+        el.ambient.volume = Math.max(0, startVolume * (1 - step / steps));
+        if (step >= steps) {
+          clearInterval(ambientFadeInterval);
+          stopAudio(el.ambient);
+        }
+      }, 42);
+    }
+
+    async function unlockAudio() {
+      await Promise.all(audios.map(async (audio) => {
+        try {
+          audio.muted = true;
+          await audio.play();
+          audio.pause();
+          audio.currentTime = 0;
+          audio.muted = false;
+        } catch (_) {
+          audio.muted = false;
+        }
+      }));
+    }
+
+    function toggleSound() {
+      soundOn = !soundOn;
+      el.soundBtn.setAttribute("aria-pressed", String(soundOn));
+      el.soundBtn.textContent = soundOn ? "◖◗" : "×";
+      if (!soundOn) audios.forEach(stopAudio);
+      if (soundOn && phase === "breath") startAmbient();
+    }
+
+    function buildDots() {
+      el.dots.innerHTML = "";
+      for (let i = 0; i < CFG.cycles; i += 1) {
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        el.dots.appendChild(dot);
+      }
+    }
+
+    function paintDots() {
+      [...el.dots.children].forEach((dot, index) => dot.classList.toggle("done", index < currentCycle));
+    }
+
+    // The 20-second strip is drawn as a real counter-clockwise SVG arc.
+    // Both its endpoint and the dot follow the identical geometry:
+    // start at 12 o'clock, move counter-clockwise, finish at 12 o'clock.
+    // Twenty-second countdown:
+    // the dot moves counter-clockwise from 12 o'clock.
+    // The amber strip shrinks behind it and returns to 12 when the timer reaches zero.
+    function ccwPoint(progress) {
+      const p = Math.max(0, Math.min(1, progress));
+      const angle = -Math.PI / 2 - p * Math.PI * 2; // 12 → 9 → 6 → 3 → 12
+      return {
+        x: 160 + CFG.ringRadius * Math.cos(angle),
+        y: 160 + CFG.ringRadius * Math.sin(angle)
+      };
+    }
+
+    function setRecoveryArc(progress) {
+      const p = Math.max(0, Math.min(1, progress));
+      const remaining = 1 - p;
+      const point = ccwPoint(p);
+
+      el.recoveryDot.setAttribute("cx", String(point.x));
+      el.recoveryDot.setAttribute("cy", String(point.y));
+
+      if (p <= 0.0001) {
+        // Full active ring at 20 seconds; dot is at 12 o'clock.
+        el.recoveryArc.setAttribute(
+          "d",
+          "M 160 28 A 132 132 0 1 1 160 292 A 132 132 0 1 1 160 28"
+        );
+        return;
+      }
+
+      if (p >= 0.9999) {
+        // 0 seconds: dot returns to 12 and the active strip disappears.
+        el.recoveryArc.setAttribute("d", "");
+        return;
+      }
+
+      // The visible arc equals the remaining time. SVG sweep flag 1 draws clockwise,
+      // while the moving boundary/dot itself travels counter-clockwise.
+      const largeArc = remaining > 0.5 ? 1 : 0;
+      el.recoveryArc.setAttribute(
+        "d",
+        `M 160 28 A ${CFG.ringRadius} ${CFG.ringRadius} 0 ${largeArc} 1 ${point.x.toFixed(3)} ${point.y.toFixed(3)}`
+      );
+    }
+
+    function startPractice() {
+      clearTimers();
+      audios.forEach(stopAudio);
+      currentRound = 1;
+      currentCycle = 1;
+      results = [];
+      buildDots();
+      unlockAudio().finally(startNewRound);
+    }
+
+    function startNewRound() {
+      // Fixes the prior bug: every new round explicitly returns to the 1/30 screen.
+      clearTimers();
+      currentCycle = 1;
+      show("breath");
+      startBreathCycle();
+    }
+
+    function startBreathCycle() {
+      el.roundNumber.textContent = String(currentRound);
+      el.cycleNumber.textContent = String(currentCycle);
+      el.cycleNote.innerHTML = currentCycle === CFG.cycles ? "финальный цикл" : "&nbsp;";
+      paintDots();
+
+      if (currentCycle === 1) startAmbient();
+      if (currentCycle === CFG.cycles) {
+        fadeAmbient();
+        playEffect(el.final, 0.48);
+      }
+
+      cycleTimer = setTimeout(() => {
+        if (currentCycle >= CFG.cycles) {
+          enterRetention();
+        } else {
+          currentCycle += 1;
+          startBreathCycle();
+        }
+      }, CFG.cycleMs);
+    }
+
+    // Free-retention indicator:
+    // the strip grows from 12 o'clock clockwise, and the dot is exactly on its leading edge.
+    function holdPoint(progress) {
+      const p = Math.max(0, Math.min(1, progress));
+      const angle = -Math.PI / 2 + p * Math.PI * 2; // 12 o'clock → clockwise
+      return {
+        x: 160 + CFG.ringRadius * Math.cos(angle),
+        y: 160 + CFG.ringRadius * Math.sin(angle)
+      };
+    }
+
+    function setHoldOrbit(progress) {
+      const p = Math.max(0, Math.min(1, progress));
+      const startX = 160;
+      const startY = 28; // exact 12 o'clock position
+      const head = holdPoint(p);
+
+      // The dot is always the leading end of the same clockwise arc.
+      el.holdDot.setAttribute("cx", String(head.x));
+      el.holdDot.setAttribute("cy", String(head.y));
+
+      if (p <= 0.0001) {
+        // At the beginning only the dot is visible at 12 o'clock.
+        el.holdArc.setAttribute("d", "");
+        return;
+      }
+
+      const largeArc = p > 0.5 ? 1 : 0;
+      // sweep-flag 1 draws clockwise in SVG screen coordinates.
+      el.holdArc.setAttribute(
+        "d",
+        `M ${startX} ${startY} A ${CFG.ringRadius} ${CFG.ringRadius} 0 ${largeArc} 1 ${head.x.toFixed(3)} ${head.y.toFixed(3)}`
+      );
+    }
+
+    function enterRetention() {
+      clearTimeout(cycleTimer);
+      fadeAmbient();
+      show("hold");
+      playEffect(el.softGong, 0.34);
+      holdStartedAt = performance.now();
+      lastMarkedMinute = 0;
+      setHoldOrbit(0);
+
+      const tick = (now) => {
+        if (phase !== "hold") return;
+        const elapsed = (now - holdStartedAt) / 1000;
+        el.holdTimer.textContent = format(elapsed);
+
+        // The strip grows clockwise from 12; the dot stays at its leading edge.
+        setHoldOrbit((elapsed % 60) / 60);
+
+        const fullMinutes = Math.floor(elapsed / 60);
+        if (fullMinutes > lastMarkedMinute) {
+          lastMarkedMinute = fullMinutes;
+          playEffect(el.softGong, 0.30);
+        }
+        holdRaf = requestAnimationFrame(tick);
+      };
+      holdRaf = requestAnimationFrame(tick);
+    }
+
+    function confirmRetention() {
+      if (phase !== "hold") return;
+      const heldSeconds = Math.max(0, Math.floor((performance.now() - holdStartedAt) / 1000));
+      cancelAnimationFrame(holdRaf);
+      results.push({ round: currentRound, seconds: heldSeconds });
+      enterRecoveryCountdown();
+    }
+
+    function enterRecoveryCountdown() {
+      show("recovery");
+
+      // The 20-second countdown begins immediately after the user confirms the deep inhale.
+      let remain = CFG.postInhaleHoldSec;
+
+      const paint = () => {
+        const elapsed = CFG.postInhaleHoldSec - remain;
+        el.recoveryTimer.textContent = `0:${String(Math.max(0, remain)).padStart(2, "0")}`;
+        setRecoveryArc(elapsed / CFG.postInhaleHoldSec);
+      };
+
+      paint();
+
+      recoveryInterval = setInterval(() => {
+        remain -= 1;
+        paint();
+
+        if (remain <= 0) {
+          clearInterval(recoveryInterval);
+          recoveryInterval = null;
+          playEffect(el.completion, 0.60);
+          setTimeout(enterPause, 280);
+        }
+      }, 1000);
+    }
+
+    function enterPause() {
+      show("pause");
+      let remain = CFG.pauseSec;
+      el.pauseRound.textContent = String(currentRound);
+      el.pauseTimer.textContent = String(remain);
+
+      pauseInterval = setInterval(() => {
+        remain -= 1;
+        el.pauseTimer.textContent = String(Math.max(0, remain));
+        if (remain <= 0) {
+          clearInterval(pauseInterval);
+          currentRound += 1;
+          startNewRound();
+        }
+      }, 1000);
+    }
+
+    function praiseFor(bestSeconds, totalRounds) {
+      if (totalRounds >= 5) return "сильная, длинная практика.";
+      if (bestSeconds >= 180) return "очень хороший лучший раунд.";
+      if (bestSeconds >= 120) return "хорошая практика. ритм держится.";
+      return "ровная практика. продолжай спокойно.";
+    }
+
+    function finishPractice() {
+      if (!results.length) return;
+      clearTimers();
+      stopAudio(el.ambient);
+      renderSummary();
+      saveHistory();
+      show("finish");
+    }
+
+    function renderSummary() {
+      const best = Math.max(...results.map((item) => item.seconds));
+      el.roundList.innerHTML = "";
+      results.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = `round-row${item.seconds === best ? " best" : ""}`;
+        row.innerHTML = `<span>раунд ${item.round}</span><span class="round-time">${format(item.seconds)}${item.seconds === best ? " ★" : ""}</span>`;
+        el.roundList.appendChild(row);
+      });
+      el.bestTime.textContent = format(best);
+      el.praise.textContent = praiseFor(best, results.length);
+    }
+
+    function historyData() {
+      try { return JSON.parse(localStorage.getItem(CFG.historyKey) || "[]"); }
+      catch (_) { return []; }
+    }
+
+    function saveHistory() {
+      const history = historyData();
+      history.unshift({ createdAt: new Date().toISOString(), rounds: results });
+      localStorage.setItem(CFG.historyKey, JSON.stringify(history.slice(0, 100)));
+    }
+
+    function renderHistory() {
+      const history = historyData();
+      el.historyList.innerHTML = "";
+      if (!history.length) {
+        el.historyList.innerHTML = '<div class="history-empty">пока нет завершённых практик.</div>';
+        return;
+      }
+      history.forEach((session) => {
+        const date = new Intl.DateTimeFormat("ru-RU", {
+          day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit"
+        }).format(new Date(session.createdAt));
+        const rounds = session.rounds.map((round) => `раунд ${round.round} — ${format(round.seconds)}`).join(" · ");
+        const best = Math.max(...session.rounds.map((round) => round.seconds));
+        const item = document.createElement("div");
+        item.className = "history-item";
+        item.innerHTML = `<div class="history-date">${date}</div><div class="history-data">${rounds}<br><span style="color:var(--muted)">лучший: ${format(best)}</span></div>`;
+        el.historyList.appendChild(item);
+      });
+    }
+
+    function openHistory() {
+      renderHistory();
+      el.historyModal.classList.add("open");
+    }
+    function closeHistory() { el.historyModal.classList.remove("open"); }
+
+    el.startBtn.addEventListener("click", startPractice);
+    el.soundBtn.addEventListener("click", toggleSound);
+    el.toHoldBtn.addEventListener("click", enterRetention);
+    el.holdTouch.addEventListener("click", confirmRetention);
+    el.finishBtn.addEventListener("click", finishPractice);
+    el.newSessionBtn.addEventListener("click", () => { clearTimers(); show("home"); });
+    el.historyBtn.addEventListener("click", openHistory);
+    el.summaryHistoryBtn.addEventListener("click", openHistory);
+    el.closeHistoryBtn.addEventListener("click", closeHistory);
+    el.historyModal.addEventListener("click", (event) => {
+      if (event.target === el.historyModal) closeHistory();
+    });
+
+    buildDots();
+    setHoldOrbit(0);
+    setRecoveryArc(0);
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  })();
+  </script>
+</body>
+</html>
